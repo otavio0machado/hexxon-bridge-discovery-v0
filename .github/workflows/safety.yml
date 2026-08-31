@@ -1,0 +1,39 @@
+name: Windows Safety Gate
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-windows-powershell-51:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Parse all PowerShell sources
+        shell: powershell
+        run: |
+          $failed = $false
+          Get-ChildItem -Path . -Recurse -File | Where-Object { $_.Extension -in '.ps1','.psm1' } | ForEach-Object {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($_.FullName, [ref]$tokens, [ref]$errors) | Out-Null
+            if ($errors.Count) {
+              $failed = $true
+              $errors | ForEach-Object { Write-Error ($_.Extent.File + ':' + $_.Extent.StartLineNumber + ' ' + $_.Message) }
+            }
+          }
+          if ($failed) { exit 1 }
+
+      - name: Run safety and privacy gate
+        shell: powershell
+        run: .\Test-Safety.ps1
+
+      - name: Run automated tests
+        shell: powershell
+        run: .\tests\Run-Tests.ps1

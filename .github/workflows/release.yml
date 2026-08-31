@@ -1,0 +1,55 @@
+name: Validated Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Parse all PowerShell sources
+        shell: powershell
+        run: |
+          $failed = $false
+          Get-ChildItem -Path . -Recurse -File | Where-Object { $_.Extension -in '.ps1','.psm1' } | ForEach-Object {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($_.FullName, [ref]$tokens, [ref]$errors) | Out-Null
+            if ($errors.Count) { $failed = $true; $errors | ForEach-Object { Write-Error $_.Message } }
+          }
+          if ($failed) { exit 1 }
+      - name: Safety gate
+        shell: powershell
+        run: .\Test-Safety.ps1
+      - name: Automated tests
+        shell: powershell
+        run: .\tests\Run-Tests.ps1
+
+  release:
+    needs: validate
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Build local-only package and checksum
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Path dist | Out-Null
+          $zip = Join-Path $PWD ('dist\HexxonBridgeDiscovery-' + $env:GITHUB_REF_NAME + '.zip')
+          $package = @('INICIAR_DISCOVERY.bat','LEIA-ME-PRIMEIRO.txt','README.md','SAFETY_MANIFEST.md','CAPABILITIES.md','TESTE-NO-WINDOWS.md','Test-Safety.ps1','Start-MockDiscovery.ps1','src','tests')
+          Compress-Archive -Path $package -DestinationPath $zip
+          $hash = (Get-FileHash -Path $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          [IO.File]::WriteAllText((Join-Path $PWD 'dist\SHA256SUMS.txt'), ($hash + '  ' + [IO.Path]::GetFileName($zip) + [Environment]::NewLine), [Text.Encoding]::ASCII)
+      - name: Publish GitHub release after successful gates
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $zip = (Get-ChildItem .\dist\*.zip | Select-Object -First 1).FullName
+          $checksums = (Get-Item .\dist\SHA256SUMS.txt).FullName
+          gh release create $env:GITHUB_REF_NAME $zip $checksums --verify-tag --generate-notes --title "Hexxon Bridge Discovery $env:GITHUB_REF_NAME"

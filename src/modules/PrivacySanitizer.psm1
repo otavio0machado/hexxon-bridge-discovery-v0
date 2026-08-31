@@ -4,7 +4,9 @@ $script:AllowedSettingPattern = '(?i)^\s*(server|host|hostname|ip|port|database|
 function Protect-DiscoveryText {
  param([AllowNull()][string]$Text)
  if ($null -eq $Text) { return $null }
- return [regex]::Replace($Text,'(?im)(\b(?:password|pwd|pass|secret|token|credential|userpassword|api[_-]?key)\b\s*[:=]\s*)([^\r\n;]*)','$1[REDACTED]')
+ $safeText=[regex]::Replace($Text,'(?im)(\b(?:password|pwd|pass|secret|token|credential|userpassword|api[_-]?key)\b\s*[:=]\s*)([^\r\n;]*)','$1[REDACTED]')
+ foreach($entry in @(@{value=$env:LOCALAPPDATA;label='%LOCALAPPDATA%'},@{value=$env:APPDATA;label='%APPDATA%'},@{value=$env:USERPROFILE;label='%USERPROFILE%'})){if($entry.value){$safeText=[regex]::Replace($safeText,[regex]::Escape([string]$entry.value),[string]$entry.label,[Text.RegularExpressions.RegexOptions]::IgnoreCase)}}
+ return $safeText
 }
 function Get-SafeConfigurationHints {
  param([string]$Path,[int]$MaxBytes = 2097152)

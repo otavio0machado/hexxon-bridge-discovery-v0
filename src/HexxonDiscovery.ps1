@@ -10,7 +10,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $moduleRoot = Join-Path $PSScriptRoot 'modules'
-@('Logger','PrivacySanitizer','SystemInfo','ProcessDiscovery','NetworkConnections','OdbcDiscovery','DriverDiscovery','ShareDiscovery','ServiceDiscovery','ConfigDiscovery','ArchitectureInference','ReportGenerator') | ForEach-Object {
+@('Logger','PrivacySanitizer','LocalPathSafety','SystemInfo','ProcessDiscovery','NetworkConnections','OdbcDiscovery','DriverDiscovery','ShareDiscovery','ServiceDiscovery','ConfigDiscovery','ArchitectureInference','ReportGenerator') | ForEach-Object {
     Import-Module (Join-Path $moduleRoot ($_.ToString() + '.psm1')) -Force
 }
 
@@ -18,7 +18,8 @@ function Get-MockApplication {
     return [pscustomobject]@{
         friendlyName = 'Compulab (simulado)'; executableName = 'Compulab.exe'; pid = 4242; parentPid = 100
         path = 'C:\Compulab\Compulab.exe'; fileVersion = '1.0.0'; publisher = 'Performática Demo'
-        productName = 'Compulab'; fileDescription = 'Aplicação demonstrativa'; windowTitle = 'Compulab'
+        productName = 'Compulab'; fileDescription = 'Aplicação demonstrativa'; hasVisibleWindow = $true
+        windowTitleMatchedCompulab = $true; windowTitleMatchedVendor = $false; signatureSubject = $null
     }
 }
 
@@ -35,7 +36,7 @@ function Get-MockData {
     return [ordered]@{
         system = [pscustomobject]@{ hostname = 'LAB-CLIENTE-DEMO'; windowsVersion = 'Windows 11 (simulado)'; architecture = 'AMD64'; powerShellVersion = $PSVersionTable.PSVersion.ToString(); accountType = 'domain'; partOfDomain = $true; interfaces = @(); machineTime = (Get-Date).ToString('o'); timezone = 'America/Sao_Paulo' }
         selectedApplication = $app
-        applicationIdentification = Get-MockIdentification
+        applicationIdentification = ConvertTo-ReportableProcessIdentification (Get-MockIdentification)
         network = [pscustomobject]@{ source = 'mock'; observation = 'TCP metadata only' }
         observedConnections = @([pscustomobject]@{ localAddress = '192.168.1.25'; localPort = 51232; remoteAddress = '192.168.1.10'; remotePort = 3050; state = 'Established'; pid = 4242; source = 'mock_observed_tcp_connection' })
         remoteEndpoints = @([pscustomobject]@{ ip = '192.168.1.10'; hostname = 'LABSERVER'; port = 3050; source = 'mock_observed_tcp_connection'; confidence = 'CONFIRMED' })
@@ -61,9 +62,9 @@ function Get-LocalStaticData {
     $drivers = Invoke-LocalCollection 'Drivers' { Get-DiscoveryDrivers }
     $shares = Invoke-LocalCollection 'Compartilhamentos locais' { Get-DiscoveryShares }
     $services = Invoke-LocalCollection 'Serviços locais' { Get-DiscoveryServices }
-    $hints = if ($null -ne $Application) { Invoke-LocalCollection 'Configuração local' { Get-DiscoveryConfigHints $Application } } else { @() }
+    $hints = if ($null -ne $Application -and (Test-IsLocalFixedPath $Application.path)) { Invoke-LocalCollection 'Configuração local' { Get-DiscoveryConfigHints $Application } } else { if ($null -ne $Application) { $script:CollectionWarnings += 'Configuração local ignorada: o executável não está em disco local fixo.' }; @() }
     return [ordered]@{
-        system = $system; selectedApplication = $Application; applicationIdentification = $Identification
+        system = $system; selectedApplication = $Application; applicationIdentification = ConvertTo-ReportableProcessIdentification $Identification
         network = [pscustomobject]@{ observation = 'TCP metadata only' }; observedConnections = @(); remoteEndpoints = @()
         odbc = @($odbc); databaseDrivers = @($drivers); networkShares = @($shares); relatedServices = @($services)
         configurationHints = @($hints); architectureInference = $null; warnings = @($script:CollectionWarnings)

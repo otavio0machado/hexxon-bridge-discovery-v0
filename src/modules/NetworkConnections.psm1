@@ -6,5 +6,5 @@ function Get-ProcessConnections { param([int]$ProcessId)
  if(!$result){$result=@((& netstat -ano -p tcp 2>$null | ForEach-Object {ConvertFrom-NetstatLine $_}) | Where-Object {$null -ne $_ -and $_.pid -eq $ProcessId})}
  return @($result | Where-Object {$_.remoteAddress -and $_.remoteAddress -notin @('0.0.0.0','::','*')} | Sort-Object remoteAddress,remotePort -Unique)
 }
-function Get-RemoteEndpointMetadata { param([object[]]$Connections) $items=@(); foreach($c in ($Connections | Sort-Object remoteAddress,remotePort -Unique)){ $host=$null;try{$host=[Net.Dns]::GetHostEntry($c.remoteAddress).HostName}catch{};$items += [pscustomobject]@{ip=$c.remoteAddress;hostname=$host;port=$c.remotePort;source='observed_tcp_connection';confidence='CONFIRMED'} };return @($items) }
+function Get-RemoteEndpointMetadata { param([object[]]$Connections) $items=@(); foreach($c in ($Connections | Sort-Object remoteAddress,remotePort -Unique)){ $items += [pscustomobject]@{ip=$c.remoteAddress;hostname=$null;port=$c.remotePort;source='observed_tcp_connection';confidence='CONFIRMED'} };return @($items) }
 Export-ModuleMember -Function ConvertFrom-NetstatLine,Get-ProcessConnections,Get-RemoteEndpointMetadata

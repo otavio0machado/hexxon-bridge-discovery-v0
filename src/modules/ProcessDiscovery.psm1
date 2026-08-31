@@ -51,6 +51,10 @@ function Get-DiscoveryProcessSnapshot {
                 if ($signature -and $signature.SignerCertificate) { $signatureSubject = [string]$signature.SignerCertificate.Subject }
             } catch { }
         }
+        $windowTitleMatchedCompulab = $windowTitle -match '(?i)compulab'
+        $windowTitleMatchedVendor = $windowTitle -match '(?i)perform[aá]tica'
+        $hasVisibleWindow = -not [string]::IsNullOrWhiteSpace($windowTitle)
+        $windowTitle = $null
         $items += [pscustomobject]@{
             friendlyName = if ($versionInfo -and $versionInfo.ProductName) { $versionInfo.ProductName } else { $processName }
             executableName = if ($path) { [IO.Path]::GetFileName($path) } else { $processName + '.exe' }
@@ -59,7 +63,9 @@ function Get-DiscoveryProcessSnapshot {
             publisher = if ($versionInfo) { $versionInfo.CompanyName } else { $null }
             productName = if ($versionInfo) { $versionInfo.ProductName } else { $null }
             fileDescription = if ($versionInfo) { $versionInfo.FileDescription } else { $null }
-            windowTitle = $windowTitle
+            hasVisibleWindow = $hasVisibleWindow
+            windowTitleMatchedCompulab = $windowTitleMatchedCompulab
+            windowTitleMatchedVendor = $windowTitleMatchedVendor
             signatureSubject = $signatureSubject
         }
     }
@@ -70,29 +76,34 @@ function Get-CompulabIdentityScore {
     param([Parameter(Mandatory = $true)][object]$Process, [int[]]$BaselineProcessIds = @(), [object[]]$InstalledHints = @())
     $score = 0; $evidence = @()
     $signatureSubject = if ($Process.PSObject.Properties.Name -contains 'signatureSubject') { $Process.signatureSubject } else { $null }
-    $strongFields = '{0} {1} {2} {3} {4} {5} {6}' -f $Process.executableName, $Process.path, $Process.publisher, $Process.productName, $Process.fileDescription, $Process.windowTitle, $signatureSubject
-    if ($strongFields -match '(?i)compulab') { $score += 100; $evidence += 'nome ou metadado contém Compulab' }
-    if ($strongFields -match '(?i)perform[aá]tica') { $score += 80; $evidence += 'fabricante ou metadado contém Performática' }
+    $hasVisibleWindow = $Process.PSObject.Properties.Name -contains 'hasVisibleWindow' -and [bool]$Process.hasVisibleWindow
+    $titleMatchedCompulab = $Process.PSObject.Properties.Name -contains 'windowTitleMatchedCompulab' -and [bool]$Process.windowTitleMatchedCompulab
+    $titleMatchedVendor = $Process.PSObject.Properties.Name -contains 'windowTitleMatchedVendor' -and [bool]$Process.windowTitleMatchedVendor
+    $strongFields = '{0} {1} {2} {3} {4} {5}' -f $Process.executableName, $Process.path, $Process.publisher, $Process.productName, $Process.fileDescription, $signatureSubject
+    $hasStrongIdentityEvidence = $false
+    if ($strongFields -match '(?i)compulab') { $score += 100; $evidence += 'nome ou metadado contém Compulab'; $hasStrongIdentityEvidence = $true }
+    if ($strongFields -match '(?i)perform[aá]tica') { $score += 80; $evidence += 'fabricante ou metadado contém Performática'; $hasStrongIdentityEvidence = $true }
     if ($strongFields -match $script:ProductIdentityPattern) { $score += 20; $evidence += 'metadado relacionado a sistema laboratorial' }
     foreach ($hint in @($InstalledHints)) {
         if ($hint.installLocation -and $Process.path -and $Process.path.StartsWith($hint.installLocation, [StringComparison]::OrdinalIgnoreCase)) {
-            $score += 70; $evidence += 'executável está no diretório de produto Compulab/Performática instalado'; break
+            $score += 70; $evidence += 'executável está no diretório de produto Compulab/Performática instalado'; $hasStrongIdentityEvidence = $true; break
         }
     }
     $isNew = $BaselineProcessIds.Count -gt 0 -and [int]$Process.pid -notin $BaselineProcessIds
     if ($isNew) {
         $score += 25; $evidence += 'processo iniciado após a orientação para abrir o Compulab'
-        if ($Process.windowTitle) { $score += 40; $evidence += 'novo processo possui janela visível' }
+        if ($hasVisibleWindow) { $score += 20; $evidence += 'novo processo possui janela visível' }
     }
-    if ($Process.windowTitle -and $Process.windowTitle -match $script:StrongIdentityPattern) { $score += 30; $evidence += 'título da janela identifica o produto' }
-    if ($signatureSubject -and $signatureSubject -match $script:StrongIdentityPattern) { $score += 40; $evidence += 'assinatura digital identifica o fabricante ou produto' }
-    return [pscustomobject]@{ application = $Process; score = $score; evidence = @($evidence | Sort-Object -Unique); isNewProcess = $isNew }
+    if ($titleMatchedCompulab -or $titleMatchedVendor) { $score += 30; $evidence += 'título da janela corresponde ao produto ou fabricante'; $hasStrongIdentityEvidence = $true }
+    if ($signatureSubject -and $signatureSubject -match $script:StrongIdentityPattern) { $score += 40; $evidence += 'assinatura digital identifica o fabricante ou produto'; $hasStrongIdentityEvidence = $true }
+    return [pscustomobject]@{ application = $Process; score = $score; evidence = @($evidence | Sort-Object -Unique); isNewProcess = $isNew; hasStrongIdentityEvidence = $hasStrongIdentityEvidence }
 }
 
 function Select-CompulabCandidate {
     param([object[]]$Candidates = @())
     $ranked = @($Candidates | Where-Object { $_.score -gt 0 } | Sort-Object score -Descending)
     if ($ranked.Count -eq 0 -or $ranked[0].score -lt 60) { return [pscustomobject]@{ status = 'not_found'; selected = $null; ranked = $ranked; reason = 'Nenhuma evidência atingiu o limite seguro.' } }
+    if (-not $ranked[0].hasStrongIdentityEvidence) { return [pscustomobject]@{ status = 'not_found'; selected = $null; ranked = $ranked; reason = 'O contexto temporal não é suficiente sem evidência forte de identidade.' } }
     if ($ranked.Count -gt 1 -and $ranked[1].score -ge 60 -and ($ranked[0].score - $ranked[1].score) -lt 20) { return [pscustomobject]@{ status = 'ambiguous'; selected = $null; ranked = $ranked; reason = 'Dois ou mais processos possuem evidências semelhantes.' } }
     return [pscustomobject]@{ status = 'found'; selected = $ranked[0]; ranked = $ranked; reason = 'Processo identificado automaticamente por evidências locais.' }
 }
@@ -120,6 +131,14 @@ function Find-CompulabProcess {
     return $selection
 }
 
+function ConvertTo-ReportableProcessIdentification {
+    param([AllowNull()][object]$Identification)
+    if ($null -eq $Identification) { return [pscustomobject]@{ status = 'not_found'; score = 0; evidence = @(); monitoredPids = @(); source = 'automatic_local_process_identification'; reason = 'Identificação indisponível.' } }
+    $score = 0; $evidence = @()
+    if ($Identification.status -eq 'found' -and $Identification.selected) { $score = [int]$Identification.selected.score; $evidence = @($Identification.selected.evidence) }
+    return [pscustomobject]@{ status = $Identification.status; score = $score; evidence = $evidence; monitoredPids = @($Identification.monitoredPids); source = $Identification.source; reason = $Identification.reason }
+}
+
 function Get-DiscoveryProcesses { $result = Find-CompulabProcess; return @($result.ranked | ForEach-Object { $_.application }) }
 
-Export-ModuleMember -Function Get-DiscoveryProcessIds,Get-InstalledCompulabHints,Get-DiscoveryProcessSnapshot,Get-CompulabIdentityScore,Select-CompulabCandidate,Get-RelatedProcessIds,Find-CompulabProcess,Get-DiscoveryProcesses
+Export-ModuleMember -Function Get-DiscoveryProcessIds,Get-InstalledCompulabHints,Get-DiscoveryProcessSnapshot,Get-CompulabIdentityScore,Select-CompulabCandidate,Get-RelatedProcessIds,Find-CompulabProcess,ConvertTo-ReportableProcessIdentification,Get-DiscoveryProcesses
