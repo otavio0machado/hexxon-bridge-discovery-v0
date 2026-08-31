@@ -1,0 +1,8 @@
+# Relatórios podem conter detalhes da infraestrutura do laboratório. Nunca os versione.
+reports/
+*.zip
+*.log
+.env
+secrets/
+temp/
+cache/

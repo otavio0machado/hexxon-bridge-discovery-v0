@@ -1,0 +1,12 @@
+HEXXON DISCOVERY
+================
+
+1. Extraia a pasta recebida.
+2. Abra o Compulab normalmente e deixe-o funcionando.
+3. Dê dois cliques em INICIAR_DISCOVERY.bat.
+4. Siga as instruções mostradas na tela.
+5. No final, clique em "Abrir pasta do relatório".
+6. Envie o arquivo HexxonDiscoveryReport_....zip ao responsável.
+
+A ferramenta apenas observa configurações locais e conexões já existentes.
+Ela não altera sistemas, não acessa dados clínicos e não envia nada para a internet.
