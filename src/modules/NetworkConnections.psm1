@@ -1,4 +1,4 @@
-Set-StrictMode -Version Latest
+﻿Set-StrictMode -Version Latest
 function ConvertFrom-NetstatLine { param([string]$Line) if($Line -notmatch '^\s*TCP\s+(\S+)\s+(\S+)\s+(\S+)\s+(\d+)\s*$'){return $null};$l=$Matches[1];$r=$Matches[2];$lp=[int]($l -replace '^.*:','');$rp=[int]($r -replace '^.*:','');[pscustomobject]@{localAddress=($l -replace ':[^:]+$','');localPort=$lp;remoteAddress=($r -replace ':[^:]+$','');remotePort=$rp;state=$Matches[3];pid=[int]$Matches[4];source='netstat_metadata'} }
 function Get-ProcessConnections { param([int]$ProcessId)
  $result=@();$cmd=Get-Command Get-NetTCPConnection -ErrorAction SilentlyContinue

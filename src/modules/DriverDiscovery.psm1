@@ -1,3 +1,3 @@
-Set-StrictMode -Version Latest
+﻿Set-StrictMode -Version Latest
 function Get-DiscoveryDrivers { $items=@();$keys=@('HKLM:\SOFTWARE\ODBC\ODBCINST.INI\ODBC Drivers','HKLM:\SOFTWARE\WOW6432Node\ODBC\ODBCINST.INI\ODBC Drivers');foreach($key in $keys){try{(Get-ItemProperty $key -ErrorAction Stop).PSObject.Properties | Where-Object {$_.Name -notmatch '^PS'} | ForEach-Object {$n=$_.Name;if($n -match 'Firebird|SQL Server|PostgreSQL|MySQL|MariaDB|Oracle'){$items += [pscustomobject]@{name=$n;path=$null;source='installed_odbc_driver';confidence='HIGH'}}}}catch{}};$known=@('C:\Program Files\Firebird\fbclient.dll','C:\Program Files (x86)\Firebird\fbclient.dll');foreach($path in $known){if(Test-Path -LiteralPath $path){$items += [pscustomobject]@{name='Firebird client library';path=$path;source='local_client_library';confidence='HIGH'}}};return @($items | Sort-Object name,path -Unique) }
 Export-ModuleMember -Function Get-DiscoveryDrivers

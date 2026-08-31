@@ -1,3 +1,3 @@
-Set-StrictMode -Version Latest
+﻿Set-StrictMode -Version Latest
 function Get-DiscoveryShares {$items=@();$cmd=Get-Command Get-SmbMapping -ErrorAction SilentlyContinue;if($cmd){try{$items=@(Get-SmbMapping -ErrorAction Stop | ForEach-Object {[pscustomobject]@{localPath=$_.LocalPath;remotePath=$_.RemotePath;source='existing_smb_mapping';confidence='CONFIRMED'}})}catch{}};if(!$items){foreach($line in (& net use 2>$null)){if($line -match '^\s*(\S+:)?\s*(\\\\\S+)'){$items += [pscustomobject]@{localPath=$Matches[1];remotePath=$Matches[2];source='existing_net_use_mapping';confidence='CONFIRMED'}}}};return @($items | Sort-Object localPath,remotePath -Unique)}
 Export-ModuleMember -Function Get-DiscoveryShares

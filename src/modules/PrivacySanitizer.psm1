@@ -1,4 +1,4 @@
-Set-StrictMode -Version Latest
+﻿Set-StrictMode -Version Latest
 $script:SecretPattern = '(?i)\b(password|pwd|pass|secret|token|credential|userpassword|api[_-]?key)\b'
 $script:AllowedSettingPattern = '(?i)^\s*(server|host|hostname|ip|port|database|db|datasource|data\s*source|catalog|driver|protocol)\s*[:=]'
 function Protect-DiscoveryText {

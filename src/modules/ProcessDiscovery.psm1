@@ -1,4 +1,4 @@
-Set-StrictMode -Version Latest
+﻿Set-StrictMode -Version Latest
 
 $script:StrongIdentityPattern = '(?i)compulab|perform[aá]tica'
 $script:ProductIdentityPattern = '(?i)laborat[oó]rio|sistema\s+lab|gest[aã]o\s+lab'

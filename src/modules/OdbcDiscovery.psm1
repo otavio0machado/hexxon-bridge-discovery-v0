@@ -1,4 +1,4 @@
-Set-StrictMode -Version Latest
+﻿Set-StrictMode -Version Latest
 function Get-SafeOdbcSettings { param([object]$Properties) $safe=[ordered]@{};foreach($x in $Properties.PSObject.Properties){if($x.Name -match '^(server|host|database|db|driver|datasource|data source|catalog)$'){$safe[$x.Name]=[string]$x.Value}};return [pscustomobject]$safe }
 function Get-DiscoveryOdbc { $result=@();$roots=@('HKCU:\Software\ODBC\ODBC.INI','HKLM:\Software\ODBC\ODBC.INI','HKLM:\Software\WOW6432Node\ODBC\ODBC.INI');foreach($root in $roots){try{$list=Get-ItemProperty -Path $root -ErrorAction Stop;foreach($p in $list.PSObject.Properties | Where-Object {$_.Name -notmatch '^PS|ODBC Data Sources'}){try{$d=Get-ItemProperty -Path (Join-Path $root $p.Name) -ErrorAction Stop;$safe=Get-SafeOdbcSettings $d;$result += [pscustomobject]@{name=$p.Name;scope=if($root -like 'HKCU:*'){'user'}else{'system'};driver=$safe.driver;settings=$safe;source='local_odbc';confidence='HIGH'}}catch{}}}catch{}};return @($result) }
 Export-ModuleMember -Function Get-DiscoveryOdbc,Get-SafeOdbcSettings

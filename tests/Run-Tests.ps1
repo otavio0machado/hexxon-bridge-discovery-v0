@@ -1,4 +1,4 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 @('PrivacySanitizer','LocalPathSafety','NetworkConnections','OdbcDiscovery','ProcessDiscovery','ConfigDiscovery','ArchitectureInference','Logger','ReportGenerator') | ForEach-Object {
     Import-Module (Join-Path $root ('src\modules\' + $_ + '.psm1')) -Force

@@ -1,4 +1,4 @@
-Set-StrictMode -Version Latest
+﻿Set-StrictMode -Version Latest
 function Get-DiscoverySystemInfo {
  $os=Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue
  $cs=Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue

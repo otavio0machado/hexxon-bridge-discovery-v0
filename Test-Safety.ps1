@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param([switch]$Quiet)
 
 $ErrorActionPreference = 'Stop'
@@ -54,6 +54,10 @@ if ($reportSource -notmatch 'Assert-LocalFixedPath') { $issues += 'Report genera
 foreach ($file in $allExecutableFiles) {
     $raw = Get-Content -LiteralPath $file.FullName -Raw
     if ($raw -match '(?is)param\s*\([^)]*\$Pid\b') { $issues += ('Reserved automatic variable used as a parameter in ' + $file.FullName) }
+    if ($file.Extension -in '.ps1','.psm1') {
+        $bytes = [IO.File]::ReadAllBytes($file.FullName)
+        if ($bytes.Length -lt 3 -or $bytes[0] -ne 0xEF -or $bytes[1] -ne 0xBB -or $bytes[2] -ne 0xBF) { $issues += ('Windows PowerShell 5.1 compatibility requires UTF-8 BOM: ' + $file.FullName) }
+    }
 }
 
 if ($issues) { $issues | ForEach-Object { Write-Host $_ -ForegroundColor Red }; throw 'Safety test failed.' }
