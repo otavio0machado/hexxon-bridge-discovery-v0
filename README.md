@@ -1,18 +1,20 @@
-# Hexxon Bridge — Discovery Agent V0
+# Hexxon Bridge — Discovery Agent V0.2
 
 Ferramenta local, somente leitura, para mapear evidências técnicas de como uma aplicação clínica autorizada se comunica com a infraestrutura. Destina-se a Windows 10/11 ou Windows Server com desktop e Windows PowerShell 5.1. Não requer administrador, SDK, instalador nem acesso à internet.
 
 ## Uso
 
-Abra o Compulab, extraia esta pasta e dê dois cliques em `INICIAR_DISCOVERY.bat`. O relatório sanitizado é criado em `reports/<data-hora>/` e compactado como `HexxonDiscoveryReport_<data-hora>.zip`. O envio do ZIP é sempre manual.
+Extraia esta pasta e dê dois cliques em `INICIAR_DISCOVERY.bat`. A interface orienta o usuário a abrir o Compulab e faz a identificação automaticamente; não existe seleção manual de processos. O relatório sanitizado é criado e compactado automaticamente como `HexxonDiscoveryReport_<data-hora>.zip`. O envio do ZIP é sempre manual.
 
 Para demonstração sem dados reais, execute `Start-MockDiscovery.ps1` no Windows PowerShell. O mock abre a mesma interface com evidências inteiramente fictícias.
 
 ## Arquitetura
 
-`src/HexxonDiscovery.ps1` hospeda a GUI WPF e orquestra módulos independentes em `src/modules/`. Eles coletam informações do computador local, processo escolhido, metadados de conexões TCP existentes, ODBC local, drivers, compartilhamentos já montados, serviços locais e indícios restritos de configuração. `ArchitectureInference` correlaciona essas evidências; conclusões são sempre hipóteses, exceto fatos diretamente observados.
+`src/HexxonDiscovery.ps1` hospeda a GUI WPF e uma máquina de estados tolerante a falhas. `ProcessDiscovery` identifica o Compulab por uma combinação de nome, caminho, metadados de versão, fabricante, produto, título da janela, assinatura digital, produto instalado e processo iniciado após a orientação. Um candidato só é aceito quando atinge o limite mínimo e não há ambiguidade. O processo principal e seus descendentes são observados.
 
-`ReportGenerator` cria `report.json` (schema 1.0), `report.html` offline, `summary.txt` e o ZIP. `PrivacySanitizer` remove campos secretos e limita conteúdo de configurações a pares técnicos permitidos.
+Os demais módulos coletam informações do computador local, metadados de conexões TCP existentes, ODBC local, drivers, compartilhamentos já montados, serviços locais e indícios restritos de configuração. `ArchitectureInference` correlaciona essas evidências; conclusões são sempre hipóteses, exceto fatos diretamente observados.
+
+`ReportGenerator` cria `report.json` (schema 1.1), `report.html` offline, `summary.txt` e o ZIP. O relatório registra as evidências da identificação automática ou informa claramente que é parcial. `PrivacySanitizer` remove campos secretos e limita conteúdo de configurações a pares técnicos permitidos.
 
 ## Modelo de segurança e privacidade
 
@@ -22,8 +24,10 @@ Reveja `Test-Safety.ps1` antes de toda entrega. Ele procura APIs de rede externa
 
 ## Desenvolvimento e testes
 
-No Windows PowerShell, execute `tests\Run-Tests.ps1`, depois `Test-Safety.ps1` e `Start-MockDiscovery.ps1`. Os testes usam apenas dados fictícios e verificam sanitização, parsing e geração de relatórios. Não execute o mock em uma entrega ao laboratório.
+No Windows PowerShell, execute `tests\Run-Tests.ps1`, depois `Test-Safety.ps1` e `Start-MockDiscovery.ps1`. Os testes usam apenas dados fictícios e verificam sanitização, parsing, identificação automática, rejeição de falsos positivos, árvore de processos, relatório parcial e execução headless completa. Não execute o mock em uma entrega ao laboratório.
+
+O roteiro completo de homologação está em `TESTE-NO-WINDOWS.md`.
 
 ## Limitações
 
-Sem privilégios elevados, alguns metadados podem não estar disponíveis. Reverse DNS usa somente a resolução padrão do Windows para endpoints já observados; não faz conexão ou scan. Portas indicam serviços possíveis, nunca confirmação por si sós.
+Sem privilégios elevados, alguns metadados podem não estar disponíveis. Quando a evidência é insuficiente ou ambígua, a ferramenta não escolhe um processo; oferece nova tentativa ou relatório parcial. Reverse DNS usa somente a resolução padrão do Windows para endpoints já observados; não faz conexão ou scan. Portas indicam serviços possíveis, nunca confirmação por si sós.
